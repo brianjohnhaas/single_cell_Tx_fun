@@ -1,0 +1,66 @@
+#!/usr/bin/env Rscript
+
+library(Seurat)
+
+# read in matrix
+nbt.data = read.table("HiSeq301-RSEM-linear_values.txt", sep="\t",header=TRUE,row.names=1)
+
+# set up Seurat obj
+nbt=methods::new("seurat",raw.data=nbt.data)
+
+nbt=Setup(nbt, project="NBT", min.cells = 3, names.field = 2, names.delim = "_", min.genes = 1000, is.expr=1, do.logNormalize = T)
+
+pdf("output_plots.pdf")
+
+# various plots
+VlnPlot(nbt,c("DPPA4","GATA1","BMP3","nGene"))
+
+CellPlot(nbt,nbt@cell.names[1],nbt@cell.names[2],do.ident = FALSE)
+
+GenePlot(nbt,"DLX1","DLX2",cex.use = 1)
+
+
+# define var genes
+nbt=MeanVarPlot(nbt,y.cutoff = 2,x.low.cutoff = 0.5, fxn.x = expMean,fxn.y = logVarDivMean)
+
+# variable genes
+nbt@var.genes
+
+
+# PCA
+nbt = PCA(nbt, pc.genes = nbt@var.genes)
+nbt = ProjectPCA(nbt)
+VizPCA(nbt, pcs.use=1:2)
+PCAPlot(nbt, 1, 2)
+
+
+
+PCHeatmap(nbt, pc.use=1,  do.balanced=TRUE)
+
+# Scree (elbow) plot
+PCElbowPlot(nbt)
+
+# find clusters
+nbt <- FindClusters(nbt, pc.use = 1:10, resolution = 0.6, print.output = 0, save.SNN = TRUE)
+
+# TSNE plot
+nbt  <- RunTSNE(nbt, dims.use = 1:10, do.fast = TRUE)
+TSNEPlot(nbt)
+
+nbt=DBClustDimension(nbt,1,2,reduction.use = "tsne",G.use = 4,set.ident = TRUE)
+TSNEPlot(nbt,pt.size = 1, do.label=T)
+
+# get the cluster values:
+nbt@ident
+
+
+# Build a phylogenetic tree, and rename/reorder cluster names according to their position on the tree
+# See help for details on tree building strategy
+# This gives closely related clusters similar cluster IDs, which is occasionally useful for visualization later on
+# Assigned cluster will be placed in the 'tree.ident' field of nbt@data.info, and also stored in nbt@ident
+
+nbt=BuildClusterTree(nbt,do.reorder = TRUE,reorder.numeric = TRUE,pcs.use = 1:11)
+
+
+dev.off()
+
